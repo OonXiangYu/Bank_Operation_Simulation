@@ -1,6 +1,6 @@
 import java.util.Random;
 import java.util.concurrent.locks.*;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.ArrayList;
 
 class Jobs{
 
@@ -52,6 +52,10 @@ class Jobs{
         return jobType;
     }
 
+    public void setJobType(int jobType){
+        this.jobType = jobType;
+    }
+
     //operation
     public void operation(Jobs c){
 
@@ -72,9 +76,11 @@ class Jobs{
 
     public void deposit(Jobs c){
         lock.lock();
+        int money = rand.nextInt(1000);
 
         try{
-            c.setBalance(c.getBalance() + rand.nextInt(1000));
+            c.setBalance(c.getBalance() + money);
+            System.out.println("Customer " + c.getID() + " successfully deposited " + money + " by Clerk " + Thread.currentThread().getId());
         }finally{
             lock.unlock();
         }
@@ -82,9 +88,11 @@ class Jobs{
 
     public void withdraw(Jobs c){
         lock.lock();
+        int money = rand.nextInt(c.getBalance() + 1);
 
         try{
-            c.setBalance(c.getBalance() - rand.nextInt(c.getBalance() + 1));
+            c.setBalance(c.getBalance() - money);
+            System.out.println("Customer " + c.getID() + " successfully withdrew " + money + " by Clerk " + Thread.currentThread().getId());
         }finally{
             lock.unlock();
         }
@@ -94,6 +102,7 @@ class Jobs{
         lock.lock();
 
         try{
+            System.out.println("Customer " + c.getID() + " has " + c.getBalance() + " in his/her bank account and displayed by Clerk " + Thread.currentThread().getId());
             return c.getBalance();
         }finally{
             lock.unlock();
@@ -103,12 +112,21 @@ class Jobs{
 
 class Bank extends Thread{
 
-    public Bank(){
+    private Jobs c;
+    Random rand = new Random();
 
+    public Bank(Jobs c){
+        this.c = c;
     }
 
     public void run(){
-
+        c.setJobType(rand.nextInt(3) + 1); //random choose one operation
+        c.operation(c);
+        try{
+            Thread.sleep(1000);
+        }catch(InterruptedException ex){
+            ex.printStackTrace();
+        }
     }
 
 }
@@ -123,11 +141,43 @@ public class ConcurrentDevelopmentAssignment2{
         Jobs[] c = new Jobs[numCustomer]; 
 
         for(int i = 0; i < numCustomer; i++){  //random generate customer details
-            String id = new String("10" + rand.nextInt(900) + 100);
+            String id = String.valueOf(10000 + i);
             String branch = branches[rand.nextInt(3)];
             int balance = rand.nextInt(1000);
             c[i] = new Jobs(id, branch, balance);
-        }       
+            //System.out.println(c[i].getID() + c[i].getBranch());
+        }
+        
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        Bank[] t = new Bank[numThreads];
+        ArrayList<Jobs> customerInBranch = new ArrayList<Jobs>();
+
+        for(int j = 0; j < 3; j++){ //total count you want to simulate
+            String currentBranch = branches[rand.nextInt(3)];
+            System.out.println("********************");
+            System.out.println(currentBranch + " Bank is now open.");
+            System.out.println("********************");
+            for(int i = 0; i < numCustomer; i++){
+                if(c[i].getBranch().equals(currentBranch)){ //this is figure out those customer who in the active branch
+                    customerInBranch.add(c[i]);
+                    //System.out.println(c[i].getID() + c[i].getBranch());
+                }
+            }
+             
+            for(int i = 0; i < numThreads; i++){
+                t[i] = new Bank(customerInBranch.get(rand.nextInt(customerInBranch.size()))); //random chose one customer to operate
+                t[i].start();         
+            }
+
+            try{
+                for(int i = 0; i < numThreads; i++){
+                    t[i].join();
+                }
+            }catch(InterruptedException ex){
+                ex.printStackTrace();
+            }
+            
+        }
     }
 
 }
