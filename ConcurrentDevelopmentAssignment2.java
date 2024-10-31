@@ -57,7 +57,7 @@ class Jobs{
     }
 
     //operation
-    public void operation(Jobs c){
+    public void operation(Jobs c, Jobs c2){
 
         switch (c.getJobType()) {
             case 1:
@@ -71,14 +71,17 @@ class Jobs{
             case 3:
                 display(c);
                 break;
+            case 4:
+                transfer(c, c2);
+                break;
         }
     }
 
     public void deposit(Jobs c){
         lock.lock();
-        int money = rand.nextInt(1000);
 
         try{
+            int money = rand.nextInt(1000) + 1; //random money below 1000
             c.setBalance(c.getBalance() + money);
             System.out.println("Customer " + c.getID() + " successfully deposited " + money + " by Clerk " + Thread.currentThread().getId());
         }finally{
@@ -88,11 +91,15 @@ class Jobs{
 
     public void withdraw(Jobs c){
         lock.lock();
-        int money = rand.nextInt(c.getBalance() + 1);
 
         try{
-            c.setBalance(c.getBalance() - money);
-            System.out.println("Customer " + c.getID() + " successfully withdrew " + money + " by Clerk " + Thread.currentThread().getId());
+            int money = rand.nextInt(c.getBalance()) + 1;
+            if (money <= c.getBalance()){
+                c.setBalance(c.getBalance() - money);
+                System.out.println("Customer " + c.getID() + " successfully withdrew " + money + " by Clerk " + Thread.currentThread().getId());
+            }else{
+                System.out.println("Customer " + c.getID() + " have not enough money to withdrew " + money + "by Clerk " + Thread.currentThread().getId());
+            }
         }finally{
             lock.unlock();
         }
@@ -108,20 +115,39 @@ class Jobs{
             lock.unlock();
         }
     }
+
+    public void transfer(Jobs c1, Jobs c2){
+        lock.lock();
+
+        try{
+            int money = rand.nextInt(c1.getBalance()) + 1;
+            if(money <= c1.getBalance()){
+                c1.setBalance(c1.getBalance() - money);
+                c2.setBalance(c2.getBalance() + money);
+                System.out.println("Customer " + c1.getID() + " transferred " + money + " to customer " + c2.getID() + " by Clerk " + Thread.currentThread().getId());
+            }else{
+                System.out.println("Customer " + c1.getID() + " is not enough money to transferred to customer " + c2.getID() + " for " + money + " by Clerk " + Thread.currentThread().getId());
+            }
+        }finally{
+            lock.unlock();
+        }
+    }
 }
 
 class Bank extends Thread{
 
-    private Jobs c;
+    private Jobs c1;
+    private Jobs c2;
     Random rand = new Random();
 
-    public Bank(Jobs c){
-        this.c = c;
+    public Bank(Jobs c1, Jobs c2){
+        this.c1 = c1;
+        this.c2 = c2;
     }
 
     public void run(){
-        c.setJobType(rand.nextInt(3) + 1); //random choose one operation
-        c.operation(c);
+        c1.setJobType(rand.nextInt(4) + 1); //random choose one operation
+        c1.operation(c1, c2);
         try{
             Thread.sleep(1000);
         }catch(InterruptedException ex){
@@ -145,7 +171,7 @@ public class ConcurrentDevelopmentAssignment2{
             String branch = branches[rand.nextInt(3)];
             int balance = rand.nextInt(1000);
             c[i] = new Jobs(id, branch, balance);
-            //System.out.println(c[i].getID() + c[i].getBranch());
+            //System.out.println(c[i].getID() + c[i].getBranch());  //code for me to debug
         }
         
         int numThreads = Runtime.getRuntime().availableProcessors();
@@ -157,15 +183,24 @@ public class ConcurrentDevelopmentAssignment2{
             System.out.println("********************");
             System.out.println(currentBranch + " Bank is now open.");
             System.out.println("********************");
+
+            customerInBranch.clear(); //clear previous list
+
             for(int i = 0; i < numCustomer; i++){
                 if(c[i].getBranch().equals(currentBranch)){ //this is figure out those customer who in the active branch
                     customerInBranch.add(c[i]);
-                    //System.out.println(c[i].getID() + c[i].getBranch());
+                    //System.out.println(c[i].getID() + c[i].getBranch()); //code for me to debug
                 }
             }
              
             for(int i = 0; i < numThreads; i++){
-                t[i] = new Bank(customerInBranch.get(rand.nextInt(customerInBranch.size()))); //random chose one customer to operate
+                int first = rand.nextInt(customerInBranch.size());
+                int sec = 0;
+                do{
+                    sec = rand.nextInt(customerInBranch.size()); //ensure two accs are different
+                }while(sec == first);
+                t[i] = new Bank(customerInBranch.get(first), customerInBranch.get(sec)); //random chose one customer to operate
+                System.out.println("Clerk " + t[i].getId() + " : " + t[i].getState());
                 t[i].start();         
             }
 
